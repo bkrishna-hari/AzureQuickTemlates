@@ -1,0 +1,112 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "functionAppName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the function container/app in which the function has to be created."
+            }
+        },
+        "storageAccountName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the existing Storage account."
+            }
+        },
+        "mediaAccountName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the existing Meida account."
+            }
+        },
+        "functionName": {
+            "defaultValue": "fnMediaIndexerConversion",
+            "type": "String",
+            "metadata": {
+                "description": "The name of the function."
+            }
+        }
+    },
+    "variables": {
+        "subscriptionId": "[subscription().subscriptionId]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/sites",
+            "kind": "functionapp",
+            "name": "[parameters('functionAppName')]",
+            "apiVersion": "2016-03-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "name": "[parameters('functionAppName')]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsDashboard",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~1"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(parameters('functionAppName'))]"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "6.5.0"
+                        },
+                        {
+                            "name": "MEDIA_ACCOUNT_NAME",
+                            "value": "[parameters('mediaAccountName')]"
+                        },
+                        {
+                            "name": "MEDIA_ACCOUNT_KEY",
+                            "value": "[listKeys(resourceId('Microsoft.Media/mediaServices', parameters('mediaAccountName')), '2015-10-01').primaryKey]"
+                        }
+                    ]
+                },
+                "clientAffinityEnabled": false
+            },
+            "resources": [
+                {
+                    "type": "Microsoft.Web/sites/functions",
+                    "name": "[concat(parameters('functionAppName'),'/', parameters('functionName'))]",
+                    "apiVersion": "2015-08-01",
+                    "properties": {
+                        "config": {
+                            "bindings": [
+                                {
+                                    "name": "myQueueItem",
+                                    "type": "queueTrigger",
+                                    "direction": "in",
+                                    "queueName": "techready23",
+                                    "connection": "techreadysac_STORAGE"
+                                }
+                            ],
+                            "disabled": true
+                        },
+                        "files": {
+                            "run.csx": "#load \"QueueData.cs\"\r\n\r\nusing System;\r\nusing Microsoft.WindowsAzure.MediaServices.Client;\r\nusing Newtonsoft.Json;\r\nusing Newtonsoft.Json.Linq;\r\nusing System.Configuration;\r\nusing System.Threading;\r\n\r\nprivate static CloudMediaContext cloudMediaContext = null;\r\n\r\npublic static void Run(QueueItem myQueueItem, TraceWriter log)\r\n{\r\n    string assetId = myQueueItem.TargetLocation.Substring(myQueueItem.TargetLocation.LastIndexOf(\"/\") + 1).Replace(\"asset-\", \"nb:cid:UUID:\");\r\n    \r\n    // Read Asset details & initiate Media Analytics\r\n    ReadMediaAssetAndRunEncoding(assetId, log);\r\n}\r\n\r\npublic static void ReadMediaAssetAndRunEncoding(string assetId, TraceWriter log)\r\n{    \r\n    string keyIdentifier = ConfigurationManager.AppSettings[\"MEDIA_ACCOUNT_NAME\"];\r\n    string keyValue = ConfigurationManager.AppSettings[\"MEDIA_ACCOUNT_KEY\"];\r\n    \r\n    MediaServicesCredentials _cachedCredentials = new MediaServicesCredentials(keyIdentifier, keyValue);\r\n    cloudMediaContext = new CloudMediaContext(_cachedCredentials);\r\n    \r\n    var assetInstance = from a in cloudMediaContext.Assets where a.Id == assetId select a;\r\n    IAsset asset = assetInstance.FirstOrDefault();\r\n\r\n    log.Info($\"Asset {asset}\");\r\n    log.Info($\"Asset Id: {asset.Id}\");\r\n    log.Info($\"Asset name: {asset.Name}\");\r\n    log.Info($\"Asset files: \");\r\n\r\n    foreach (IAssetFile fileItem in asset.AssetFiles)\r\n    {\r\n        log.Info($\"    Name: {fileItem.Name}\");\r\n        log.Info($\"    Size: {fileItem.ContentFileSize}\");\r\n    }\r\n\r\n    //submit job\r\n    EncodeToAdaptiveBitrateMP4s(asset, AssetCreationOptions.None, log);\r\n\r\n    log.Info($\"Encoding launched - function done\");\r\n}\r\n\r\nstatic public void EncodeToAdaptiveBitrateMP4s(IAsset asset, AssetCreationOptions options, TraceWriter log)\r\n{\r\n\r\n    // Prepare a job with a single task to transcode the specified asset\r\n    // into a multi-bitrate asset MP4 720p preset.\r\n    var encodingPreset = \"H264 Multiple Bitrate 720p\";\r\n\r\n    IJob job = cloudMediaContext.Jobs.Create(\"Encoding \" + asset.Name + \" to \" + encodingPreset);\r\n    \r\n    log.Info($\"Job created\");\r\n    \r\n    IMediaProcessor mesEncoder = (from p in cloudMediaContext.MediaProcessors where p.Name == \"Media Encoder Standard\" select p).ToList().OrderBy(mes => new Version(mes.Version)).LastOrDefault();\r\n    \r\n    log.Info($\"MES encoder\");\r\n    \r\n    ITask encodeTask = job.Tasks.AddNew(\"Encoding\", mesEncoder, encodingPreset, TaskOptions.None);\r\n    encodeTask.InputAssets.Add(asset);\r\n    encodeTask.OutputAssets.AddNew(asset.Name + \" as \" + encodingPreset, AssetCreationOptions.None);\r\n\r\n    log.Info($\"Submit job encoder\");\r\n    job.Submit();\r\n\r\n    //todo - change to queue based notifications\r\n    job.GetExecutionProgressTask(CancellationToken.None).Wait();\r\n    \r\n    \r\n}\r\n\r\n\r\npublic static string GetDynamicStreamingUrl(IAsset outputAsset)\r\n{\r\n    var daysForWhichStreamingUrlIsActive = 365;\r\n    \r\n    var accessPolicy = cloudMediaContext.AccessPolicies.Create(outputAsset.Name, TimeSpan.FromDays(daysForWhichStreamingUrlIsActive), AccessPermissions.Read | AccessPermissions.List);\r\n    var assetFiles = outputAsset.AssetFiles.ToList();\r\n    \r\n    var assetFile = assetFiles.Where(f => f.Name.ToLower().EndsWith(\".ism\")).FirstOrDefault();\r\n    if (assetFile != null)\r\n    {\r\n        var locator = cloudMediaContext.Locators.CreateLocator(LocatorType.OnDemandOrigin, outputAsset, accessPolicy);\r\n        Uri smoothUri = new Uri(locator.Path + assetFile.Name + \"/manifest\");\r\n        \r\n         \r\n        return smoothUri.ToString();\r\n    }\r\n\r\n    return string.Empty;\r\n}\r\n\r\npublic static bool RunIndexingJob(IAsset asset, TraceWriter log, string configurationFile = \"\")\r\n{\r\n    // Declare a new job.\r\n    var jobName = string.Format(\"Media Indexing of {0}\", asset.Name);\r\n    IJob job = cloudMediaContext.Jobs.Create(jobName);\r\n    job.Priority = 10;\r\n\r\n    // Get a reference to the Azure Media Indexer.\r\n    string MediaProcessorName = \"Azure Media Indexer\";\r\n    IMediaProcessor processor = GetLatestMediaProcessorByName(MediaProcessorName);\r\n\r\n    // Read configuration from file if specified.\r\n    string configuration = string.IsNullOrEmpty(configurationFile) ? \"\" : File.ReadAllText(configurationFile);\r\n\r\n    // Create a task with the encoding details, using a string preset.\r\n    ITask task = job.Tasks.AddNew(jobName, processor, configuration, TaskOptions.None);\r\n\r\n    // Specify the input asset to be indexed.\r\n    task.InputAssets.Add(asset);\r\n\r\n    // Add an output asset to contain the results of the job.\r\n    task.OutputAssets.AddNew(string.Format(\"{0} - Indexed\", asset.Name), AssetCreationOptions.None);\r\n\r\n    // Launch the job.\r\n    job.Submit();\r\n    log.Info($\"Media Indexer submitted (Job name: {jobName})\");\r\n\r\n    return true;\r\n}\r\n\r\npublic static IMediaProcessor GetLatestMediaProcessorByName(string mediaProcessorName)\r\n{\r\n    var processor = cloudMediaContext.MediaProcessors.Where(p => p.Name == mediaProcessorName).ToList().OrderBy(p => new Version(p.Version)).LastOrDefault();\r\n\r\n    if (processor == null)\r\n        throw new ArgumentException(string.Format(\"Unknown media processor\", mediaProcessorName));\r\n\r\n    return processor;\r\n}",
+                            "project.json": "{\r\n  \"frameworks\": {\r\n    \"net46\":{\r\n      \"dependencies\": {\r\n        \"windowsazure.mediaservices\": \"3.6.0\"\r\n      }\r\n     }\r\n   }\r\n}",
+                            "QueueData.cs": "public class QueueItem\r\n{\r\n    public string SourceLocation {get;set;}\r\n    public long SizeInBytes {get;set;}\r\n    public string Status {get;set;}\r\n    public string JobID {get;set;}\r\n    public string TargetLocation {get; set;}\r\n}"
+                        }
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', parameters('functionAppName'))]"
+                    ]
+                }
+            ]
+        }
+    ]
+}

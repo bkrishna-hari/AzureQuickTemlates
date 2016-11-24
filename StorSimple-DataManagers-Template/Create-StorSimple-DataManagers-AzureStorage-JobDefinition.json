@@ -1,0 +1,208 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "dataManagerNameParameter": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the DataManager Resource within the specified resource group. StorSimple Data Manager name must be between 3 and 24 characters long and use any alphanumeric and underscore only."
+            }
+        },
+        "dataSourceName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name store/repository name to be created or updated."
+            }
+        },
+        "dataSinkName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name store/repository name to be created or updated."
+            }
+        },
+        "resourceId": {
+            "type": "String"
+        },
+        "serviceEncryptionKey": {
+            "type": "SecureString"
+        },
+        "storageAccountName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
+            }
+        },
+        "jobDefinitionName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name can only contain alpha-numeric characters."
+            }
+        },
+        "deviceName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name can only contain numbers or letters."
+            }
+        },
+        "volumeNames": {
+            "type": "String",
+            "metadata": {
+                "description": "The name can only contain numbers or letters."
+            }
+        },
+        "rootDirectories": {
+            "defaultValue": "\\",
+            "type": "String",
+            "metadata": {
+                "description": "The data can only allow either \\ or specific root directory"
+            }
+        },
+        "fileNameFilter": {
+            "defaultValue": "*",
+            "type": "String",
+            "metadata": {
+                "description": "The data can only allow either * or *.* or specific file filter"
+            }
+        },
+        "containerName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name must be between 3 and 63 characters long and use lowercase letters, hyphens, and must begin with a letter or a number. The name can not contain two consecutive hyphens."
+            }
+        },
+        "backupChoice": {
+            "defaultValue": "UseExistingLatest",
+            "allowedValues": [
+                "UseExistingLatest",
+                "TakeNow"
+            ],
+            "type": "String"
+        },
+        "userConfirmation": {
+            "defaultValue": "NotRequired",
+            "allowedValues": [
+                "NotRequired",
+                "Required"
+            ],
+            "type": "String"
+        }
+    },
+    "variables": {
+        "subscriptionId": "[subscription().subscriptionId]",
+        "storageAccountType": "Standard_GRS"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "sku": {
+                "name": "[variables('storageAccountType')]"
+            },
+            "kind": "Storage",
+            "name": "[parameters('storageAccountName')]",
+            "apiVersion": "2016-01-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "encryption": {
+                    "services": {
+                        "blob": {
+                            "enabled": "false"
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.HybridData/dataManagers",
+            "sku": {
+                "name": "DS0",
+                "tier": "Standard"
+            },
+            "name": "[parameters('dataManagerNameParameter')]",
+            "apiVersion": "2016-06-01",
+            "location": "[resourceGroup().location]",
+            "resources": [
+                {
+                    "type": "dataStores",
+                    "name": "[parameters('dataSourceName')]",
+                    "apiVersion": "2016-06-01",
+                    "properties": {
+                        "repositoryId": "[concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/StorSimple/providers/Microsoft.StorSimple/managers/'), parameters('resourceId'))]",
+                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStoreTypes/Storsimple8000Series')]",
+                        "state": "Enabled",
+                        "extendedProperties": {
+                            "resourceId": "[parameters('resourceId')]"
+                        },
+                        "customerSecrets": [
+                            {
+                                "keyIdentifier": "ServiceEncryptionKey",
+                                "keyValue": "[parameters('serviceEncryptionKey')]",
+                                "algorithm": "RSA1_5"
+                            }
+                        ]
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]"
+                    ]
+                },
+                {
+                    "type": "dataStores",
+                    "name": "[parameters('dataSinkName')]",
+                    "apiVersion": "2016-06-01",
+                    "properties": {
+                        "repositoryId": "[concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().location), '/providers/Microsoft.Storage/storageAccounts/'), parameters('storageAccountName'))]",
+                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStoreTypes/AzureStorageAccount')]",
+                        "state": "Enabled",
+                        "extendedProperties": {
+                            "storageAccountNameForQueue": "[parameters('storageAccountName')]"
+                        },
+                        "customerSecrets": [
+                            {
+                                "keyIdentifier": "StorageAccountAccessKey",
+                                "keyValue": "[listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1]",
+                                "algorithm": "RSA1_5"
+                            },
+                            {
+                                "keyIdentifier": "StorageAccountAccessKeyForQueue",
+                                "keyValue": "[listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1]",
+                                "algorithm": "RSA1_5"
+                            }
+                        ]
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.Storage/storageAccounts/', parameters('storageAccountName'))]",
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]"
+                    ]
+                },
+                {
+                    "type": "dataServices/jobDefinitions",
+                    "name": "[concat('dataTransformation/', parameters('jobDefinitionName'))]",
+                    "apiVersion": "2016-06-01",
+                    "properties": {
+                        "dataSourceId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
+                        "dataSinkId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]",
+                        "state": "Enabled",
+                        "userConfirmation": "[parameters('userConfirmation')]",
+                        "dataServiceInput": {
+                            "deviceName": "[parameters('deviceName')]",
+                            "fileNameFilter": "[parameters('fileNameFilter')]",
+                            "containerName": "[parameters('containerName')]",
+                            "rootDirectories": [
+                                "[parameters('rootDirectories')]"
+                            ],
+                            "volumeNames": [
+                                "[parameters('volumeNames')]"
+                            ],
+                            "backupChoice": "[parameters('backupChoice')]"
+                        }
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]",
+                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
+                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]"
+                    ]
+                }
+            ]
+        }
+    ]
+}

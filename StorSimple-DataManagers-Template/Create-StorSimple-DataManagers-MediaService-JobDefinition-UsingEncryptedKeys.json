@@ -1,0 +1,294 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "dataManagerNameParameter": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the DataManager Resource within the specified resource group. StorSimple Data Manager name must be between 3 and 24 characters long and use any alphanumeric and underscore only."
+            }
+        },
+        "dataSourceName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name store/repository name to be created or updated."
+            }
+        },
+        "dataSinkName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name store/repository name to be created or updated."
+            }
+        },
+        "resourceId": {
+            "type": "String"
+        },
+        "serviceEncryptionKey": {
+            "type": "SecureString"
+        },
+        "storageAccountName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
+            }
+        },
+        "storageAccountEncryptedKey": {
+            "type": "SecureString"
+        },
+        "mediaServiceName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
+            }
+        },
+        "mediaServiceEncryptedKey": {
+            "type": "SecureString"
+        },
+        "jobDefinitionName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name can only contain alpha-numeric characters."
+            }
+        },
+        "deviceName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name can only contain numbers or letters."
+            }
+        },
+        "volumeNames": {
+            "type": "String",
+            "metadata": {
+                "description": "The name can only contain numbers or letters."
+            }
+        },
+        "rootDirectories": {
+            "defaultValue": "\\",
+            "type": "String",
+            "metadata": {
+                "description": "The data can only allow either \\ or specific root directory"
+            }
+        },
+        "fileNameFilter": {
+            "defaultValue": "*",
+            "type": "String",
+            "metadata": {
+                "description": "The data can only allow either * or *.* or specific file filter"
+            }
+        },
+        "backupChoice": {
+            "defaultValue": "UseExistingLatest",
+            "allowedValues": [
+                "UseExistingLatest",
+                "TakeNow"
+            ],
+            "type": "String"
+        },
+        "userConfirmation": {
+            "defaultValue": "NotRequired",
+            "allowedValues": [
+                "NotRequired",
+                "Required"
+            ],
+            "type": "String"
+        },
+        "isDirectoryMode": {
+            "defaultValue": false,
+            "type": "Bool"
+        },
+        "functionAppName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the function container/app in which the function has to be created."
+            }
+        },
+        "functionName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the function."
+            }
+        }
+    },
+    "variables": {
+        "subscriptionId": "[subscription().subscriptionId]",
+        "storageAccountType": "Standard_GRS"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.HybridData/dataManagers",
+            "sku": {
+                "name": "DS0",
+                "tier": "Standard"
+            },
+            "name": "[parameters('dataManagerNameParameter')]",
+            "apiVersion": "2016-06-01",
+            "location": "[resourceGroup().location]",
+            "resources": [
+                {
+                    "type": "dataStores",
+                    "name": "[parameters('dataSourceName')]",
+                    "apiVersion": "2016-06-01",
+                    "properties": {
+                        "repositoryId": "[concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/StorSimple/providers/Microsoft.StorSimple/managers/'), parameters('resourceId'))]",
+                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStoreTypes/Storsimple8000Series')]",
+                        "state": "Enabled",
+                        "extendedProperties": {
+                            "resourceId": "[parameters('resourceId')]"
+                        },
+                        "customerSecrets": [
+                            {
+                                "keyIdentifier": "ServiceEncryptionKey",
+                                "keyValue": "[parameters('serviceEncryptionKey')]",
+                                "algorithm": "RSA1_5"
+                            }
+                        ]
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]"
+                    ]
+                },
+                {
+                    "type": "dataStores",
+                    "name": "[parameters('dataSinkName')]",
+                    "apiVersion": "2016-06-01",
+                    "properties": {
+                        "repositoryId": "[concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().location), '/providers/Microsoft.Media/mediaservices/'), parameters('mediaServiceName'))]",
+                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStoreTypes/AzureMediaServicesAccount')]",
+                        "state": "Enabled",
+                        "extendedProperties": {
+                            "storageAccountNameForQueue": "[parameters('storageAccountName')]"
+                        },
+                        "customerSecrets": [
+                            {
+                                "keyIdentifier": "MediaServicesAccessKey",
+                                "keyValue": "[parameters('mediaServiceEncryptedKey')]",
+                                "algorithm": "RSA1_5"
+                            },
+                            {
+                                "keyIdentifier": "StorageAccountAccessKeyForQueue",
+                                "keyValue": "[parameters('storageAccountEncryptedKey')]",
+                                "algorithm": "RSA1_5"
+                            }
+                        ]
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]"
+                    ]
+                },
+                {
+                    "type": "dataServices/jobDefinitions",
+                    "name": "[concat('dataTransformation/', parameters('jobDefinitionName'))]",
+                    "apiVersion": "2016-06-01",
+                    "properties": {
+                        "dataSourceId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
+                        "dataSinkId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]",
+                        "state": "Enabled",
+                        "userConfirmation": "[parameters('userConfirmation')]",
+                        "dataServiceInput": {
+                            "deviceName": "[parameters('deviceName')]",
+                            "fileNameFilter": "[parameters('fileNameFilter')]",
+                            "rootDirectories": [
+                                "[parameters('rootDirectories')]"
+                            ],
+                            "volumeNames": [
+                                "[parameters('volumeNames')]"
+                            ],
+                            "backupChoice": "[parameters('backupChoice')]",
+                            "isDirectoryMode": "[parameters('isDirectoryMode')]"
+                        }
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]",
+                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
+                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]"
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "kind": "functionapp",
+            "name": "[parameters('functionAppName')]",
+            "apiVersion": "2016-03-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "name": "[parameters('functionAppName')]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "AZUREWEBJOBSDASHBOARD",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "AZUREWEBJOBSSTORAGE",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~1"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(parameters('functionAppName'))]"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "6.5.0"
+                        },
+                        {
+                            "name": "MEDIA_ACCOUNT_NAME",
+                            "value": "[parameters('mediaServiceName')]"
+                        },
+                        {
+                            "name": "MEDIA_ACCOUNT_KEY",
+                            "value": "[listKeys(resourceId('Microsoft.Media/mediaServices', parameters('mediaServiceName')), '2015-10-01').primaryKey]"
+                        },
+                        {
+                            "name": "[concat(toUpper(parameters('functionName')), '_QUEUE_STORAGE')]",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        }
+                    ]
+                },
+                "clientAffinityEnabled": true
+            },
+            "resources": [
+                {
+                    "type": "Microsoft.Web/sites/functions",
+                    "name": "[concat(parameters('functionAppName'),'/', parameters('functionName'))]",
+                    "apiVersion": "2015-08-01",
+                    "properties": {
+                        "config": {
+                            "bindings": [
+                                {
+                                    "name": "queueMessage",
+                                    "type": "queueTrigger",
+                                    "direction": "in",
+                                    "queueName": "[toLower(parameters('jobDefinitionName'))]",
+                                    "connection": "[concat(toUpper(parameters('functionName')), '_QUEUE_STORAGE')]"
+                                }
+                            ],
+                            "disabled": false
+                        },
+                        "files": {
+                            "run.csx": "using System;\r\nusing Newtonsoft.Json;\r\nusing Newtonsoft.Json.Linq;\r\nusing System.Collections.Generic;\r\nusing System.Linq;\r\nusing System.Configuration;\r\nusing Microsoft.WindowsAzure.Storage.Queue;\r\nusing Microsoft.WindowsAzure.MediaServices.Client;\r\nusing System.Threading;\r\n\r\nprivate static CloudMediaContext cloudMediaContext = null;\r\n\r\npublic static void Run(QueueData queueMessage, TraceWriter log)\r\n{\r\n    string assetId = queueMessage.TargetLocation.Substring(queueMessage.TargetLocation.LastIndexOf(\"/\") + 1).Replace(\"asset-\", \"nb:cid:UUID:\");\r\n    log.Info($\"AssetId: {assetId}\");\r\n    ReadMediaAssetAndRunEncoding(assetId, log);\r\n}\r\n\r\npublic static void ReadMediaAssetAndRunEncoding(string assetId, TraceWriter log)\r\n{    \r\n    string keyIdentifier = ConfigurationManager.AppSettings[\"MEDIA_ACCOUNT_NAME\"];\r\n    string keyValue = ConfigurationManager.AppSettings[\"MEDIA_ACCOUNT_KEY\"];\r\n    \r\n    MediaServicesCredentials _cachedCredentials = new MediaServicesCredentials(keyIdentifier, keyValue);\r\n    cloudMediaContext = new CloudMediaContext(_cachedCredentials);\r\n    \r\n    var assetInstance = from a in cloudMediaContext.Assets where a.Id == assetId select a;\r\n    IAsset asset = assetInstance.FirstOrDefault();\r\n\r\n    log.Info($\"Asset {asset}\");\r\n    log.Info($\"Asset Id: {asset.Id}\");\r\n    log.Info($\"Asset name: {asset.Name}\");\r\n    log.Info($\"Asset files: \");\r\n\r\n    List<string> fileNames = new List<string>();\r\n    foreach (IAssetFile fileItem in asset.AssetFiles)\r\n    {\r\n        log.Info($\"    Name: {fileItem.Name}\");\r\n        log.Info($\"    Size: {fileItem.ContentFileSize}\");\r\n        fileNames.Add(fileItem.Name);\r\n    }\r\n\r\n    ////submit job\r\n    EncodeToAdaptiveBitrateMP4s(asset, log, fileNames);\r\n\r\n    log.Info($\"Encoding launched - function done\");\r\n}\r\n\r\nstatic public void EncodeToAdaptiveBitrateMP4s(IAsset asset, TraceWriter log, List<string> assetFiles)\r\n{\r\n    if (assetFiles.Count > 1)\r\n    {\r\n        SetFirstFileAsPrimary(asset, Path.GetExtension(assetFiles[0]));\r\n    }\r\n    \r\n    // Prepare a job with a single task to transcode the specified asset\r\n    // into a multi-bitrate asset MP4 720p preset.\r\n    var encodingPreset = \"H264 Multiple Bitrate 720p\";\r\n\r\n    IJob job = cloudMediaContext.Jobs.Create(\"Encoding \" + asset.Name + \" to \" + encodingPreset);\r\n    \r\n    log.Info($\"Job created\");\r\n    \r\n    IMediaProcessor mesEncoder = (from p in cloudMediaContext.MediaProcessors where p.Name == \"Media Encoder Standard\" select p).ToList().OrderBy(mes => new Version(mes.Version)).LastOrDefault();\r\n    \r\n    log.Info($\"MES encoder\");\r\n    \r\n    ITask encodeTask = job.Tasks.AddNew(\"Encoding\", mesEncoder, encodingPreset, TaskOptions.None);\r\n    encodeTask.InputAssets.Add(asset);\r\n    encodeTask.OutputAssets.AddNew(asset.Name + \" as \" + encodingPreset, AssetCreationOptions.None);\r\n\r\n    log.Info($\"Submit job encoder\");\r\n    job.Submit();\r\n}\r\n\r\n\r\nstatic private void SetFirstFileAsPrimary(IAsset asset, string extension)\r\n{\r\n    var ismAssetFiles = asset.AssetFiles.ToList().Where(f => f.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)).ToArray(); \r\n    if(ismAssetFiles != null) \r\n    {\r\n        ismAssetFiles.First().IsPrimary = true;\r\n        ismAssetFiles.First().Update();\r\n    }\r\n}\r\n\r\npublic class QueueData\r\n{\r\n    public string SourceLocation {get; set;}\r\n    public long SizeInBytes {get; set;}\r\n    public string Status {get; set;}\r\n    public string JobId {get; set;}\r\n    public string TargetLocation {get; set;}\r\n}",
+                            "project.json": "{\r\n  \"frameworks\": {\r\n    \"net46\":{\r\n      \"dependencies\": {\r\n        \"EntityFramework\": \"6.1.3\",\r\n        \"LinqKit\": \"1.1.7.2\",\r\n        \"Microsoft.Azure.WebJobs\": \"1.1.2\",\r\n        \"WindowsAzure.Storage\": \"7.2.1\",\r\n        \"WindowsAzure.MediaServices\": \"3.8.0.3\"\r\n      }\r\n     }\r\n   }\r\n}"
+                        }
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', parameters('functionAppName'))]"
+                    ]
+                }
+            ],
+            "dependsOn": [
+                "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]",
+                "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
+                "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]",
+                "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'), '/dataServices/dataTransformation/jobDefinitions/', parameters('jobDefinitionName'))]"
+            ]
+        }
+    ]
+}

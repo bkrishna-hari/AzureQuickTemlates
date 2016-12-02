@@ -1,0 +1,317 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "dataManagerName": {
+            "type": "string",
+            "metadata": {
+                "group": "Data manager settings",
+                "description": "The name of the DataManager Resource within the specified resource group. StorSimple Data Manager name must be between 3 and 24 characters long and use any alphanumeric and underscore only."
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "group": "Data manager settings"
+            }
+        },
+        "dataSourceName": {
+            "type": "string",
+            "metadata": {
+                "group": "Data source settings",
+                "description": "The name store/repository name to be created or updated."
+            }
+        },
+        "dataSinkName": {
+            "type": "string",
+            "metadata": {
+                "group": "Data sink settings",
+                "description": "The name store/repository name to be created or updated."
+            }
+        },
+        "resourceId": {
+            "type": "string",
+            "metadata": {
+                "group": "Data source settings"
+            }
+        },
+        "serviceEncryptionKey": {
+            "type": "securestring",
+            "metadata": {
+                "group": "Data source settings"
+            }
+        },
+        "mediaServiceName": {
+            "type": "string",
+            "metadata": {
+                "group": "Data sink settings",
+                "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
+            }
+        },
+        "mediaServiceEncryptedKey": {
+            "type": "securestring",
+            "metadata": {
+                "group": "Data sink settings"
+            }
+        },
+        "storageAccountName": {
+            "type": "string",
+            "metadata": {
+                "group": "Data sink settings",
+                "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
+            }
+        },
+        "storageAccountEncryptedKey": {
+            "type": "securestring",
+            "metadata": {
+                "group": "Data sink settings"
+            }
+        },
+        "jobDefinitionName": {
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings",
+                "description": "The name can only contain alpha-numeric characters."
+            }
+        },
+        "deviceName": {
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings",
+                "description": "The name can only contain numbers or letters."
+            }
+        },
+        "volumeNames": {
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings",
+                "description": "The name can only contain numbers or letters."
+            }
+        },
+        "rootDirectories": {
+            "defaultValue": "\\",
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings",
+                "description": "The data can only allow either \\ or specific root directory"
+            }
+        },
+        "fileNameFilter": {
+            "defaultValue": "*",
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings",
+                "description": "The data can only allow either * or *.* or specific file filter"
+            }
+        },
+        "backupChoice": {
+            "defaultValue": "UseExistingLatest",
+            "allowedValues": [
+                "UseExistingLatest",
+                "TakeNow"
+            ],
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings"
+            }
+        },
+        "userConfirmation": {
+            "defaultValue": "NotRequired",
+            "allowedValues": [
+                "NotRequired",
+                "Required"
+            ],
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings"
+            }
+        },
+        "isDirectoryMode": {
+            "defaultValue": false,
+            "type": "bool",
+            "metadata": {
+                "group": "Job definition settings"
+            }
+        },
+        "functionAppName": {
+            "type": "string",
+            "metadata": {
+                "group": "Azure function app settings",
+                "description": "The name of the function container/app in which the function has to be created."
+            }
+        },
+        "functionName": {
+            "type": "string",
+            "metadata": {
+                "group": "Azure function app settings",
+                "description": "The name of the function."
+            }
+        }
+    },
+    "variables": {
+        "subscriptionId": "[subscription().subscriptionId]",
+        "storageAccountType": "Standard_GRS"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "sku": {
+                "name": "[variables('storageAccountType')]"
+            },
+            "kind": "Storage",
+            "name": "[parameters('storageAccountName')]",
+            "apiVersion": "2016-01-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "encryption": {
+                    "services": {
+                        "blob": {
+                            "enabled": "false"
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Media/mediaServices",
+            "name": "[parameters('mediaServiceName')]",
+            "apiVersion": "2015-10-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "storageAccounts": [
+                    {
+                        "isPrimary": true,
+                        "id": "[resourceId('Microsoft.Storage/storageAccounts/', parameters('storageAccountName'))]"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', parameters('storageAccountName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.HybridData/dataManagers",
+            "sku": {
+                "name": "DS0",
+                "tier": "Standard"
+            },
+            "name": "[parameters('dataManagerNameParameter')]",
+            "apiVersion": "2016-06-01",
+            "location": "[resourceGroup().location]"
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "kind": "functionapp",
+            "name": "[parameters('functionAppName')]",
+            "apiVersion": "2016-03-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "name": "[parameters('functionAppName')]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "AZUREWEBJOBSDASHBOARD",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "AZUREWEBJOBSSTORAGE",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~1"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(parameters('functionAppName'))]"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "6.5.0"
+                        },
+                        {
+                            "name": "MEDIA_ACCOUNT_NAME",
+                            "value": "[parameters('mediaServiceName')]"
+                        },
+                        {
+                            "name": "MEDIA_ACCOUNT_KEY",
+                            "value": "[listKeys(resourceId('Microsoft.Media/mediaServices', parameters('mediaServiceName')), '2015-10-01').primaryKey]"
+                        },
+                        {
+                            "name": "[concat(toUpper(parameters('functionAppName')), '_QUEUE_STORAGE')]",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'),';AccountKey=',listKeys(resourceId(variables('subscriptionId'),resourceGroup().name,'Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2015-05-01-preview').key1)]"
+                        }
+                    ]
+                },
+                "clientAffinityEnabled": false
+            },
+            "resources": [
+                {
+                    "type": "Microsoft.Web/sites/functions",
+                    "name": "[concat(parameters('functionAppName'),'/', parameters('functionName'))]",
+                    "apiVersion": "2015-08-01",
+                    "properties": {
+                        "config": {
+                            "bindings": [
+                                {
+                                    "name": "myQueueItem",
+                                    "type": "queueTrigger",
+                                    "direction": "in",
+                                    "queueName": "[parameters('jobDefinitionName')]",
+                                    "connection": "[concat(toUpper(parameters('functionAppName')), '_QUEUE_STORAGE')]"
+                                }
+                            ],
+                            "disabled": true
+                        },
+                        "files": {
+                            "run.csx": "",
+                            "project.json": "",
+                            "function.json": "{\r\n  \"bindings\": [\r\n    {\r\n      \"name\": \"myTimer\",\r\n      \"type\": \"timerTrigger\",\r\n      \"direction\": \"in\",\r\n      \"schedule\": \"0 0/20 * * * *\"\r\n    }\r\n  ],\r\n  \"disabled\": true\r\n}"
+                        }
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', parameters('functionAppName'))]"
+                    ]
+                },
+                {
+                    "type": "Microsoft.Web/sites/functions",
+                    "name": "[concat(parameters('functionAppName'),'/', parameters('functionName'))]",
+                    "apiVersion": "2015-08-01",
+                    "properties": {
+                        "config": {
+                            "bindings": [
+                                {
+                                    "name": "myQueueItem",
+                                    "type": "queueTrigger",
+                                    "direction": "in",
+                                    "queueName": "[parameters('jobDefinitionName')]",
+                                    "connection": "[concat(toUpper(parameters('functionAppName')), '_QUEUE_STORAGE')]"
+                                }
+                            ],
+                            "disabled": true
+                        },
+                        "files": {
+                            "run.csx": "#load \"QueueData.cs\"\r\n\r\nusing System;\r\nusing Microsoft.WindowsAzure.MediaServices.Client;\r\nusing Newtonsoft.Json;\r\nusing Newtonsoft.Json.Linq;\r\nusing System.Configuration;\r\nusing System.Threading;\r\n\r\nprivate static CloudMediaContext cloudMediaContext = null;\r\n\r\npublic static void Run(QueueItem myQueueItem, TraceWriter log)\r\n{\r\n    string assetId = myQueueItem.TargetLocation.Substring(myQueueItem.TargetLocation.LastIndexOf(\"/\") + 1).Replace(\"asset-\", \"nb:cid:UUID:\");\r\n    \r\n    // Read Asset details & initiate Media Analytics\r\n    ReadMediaAssetAndRunEncoding(assetId, log);\r\n}\r\n\r\npublic static void ReadMediaAssetAndRunEncoding(string assetId, TraceWriter log)\r\n{    \r\n    string keyIdentifier = ConfigurationManager.AppSettings[\"MEDIA_ACCOUNT_NAME\"];\r\n    string keyValue = ConfigurationManager.AppSettings[\"MEDIA_ACCOUNT_KEY\"];\r\n    \r\n    MediaServicesCredentials _cachedCredentials = new MediaServicesCredentials(keyIdentifier, keyValue);\r\n    cloudMediaContext = new CloudMediaContext(_cachedCredentials);\r\n    \r\n    var assetInstance = from a in cloudMediaContext.Assets where a.Id == assetId select a;\r\n    IAsset asset = assetInstance.FirstOrDefault();\r\n\r\n    log.Info($\"Asset {asset}\");\r\n    log.Info($\"Asset Id: {asset.Id}\");\r\n    log.Info($\"Asset name: {asset.Name}\");\r\n    log.Info($\"Asset files: \");\r\n\r\n    foreach (IAssetFile fileItem in asset.AssetFiles)\r\n    {\r\n        log.Info($\"    Name: {fileItem.Name}\");\r\n        log.Info($\"    Size: {fileItem.ContentFileSize}\");\r\n    }\r\n\r\n    //submit job\r\n    EncodeToAdaptiveBitrateMP4s(asset, AssetCreationOptions.None, log);\r\n\r\n    log.Info($\"Encoding launched - function done\");\r\n}\r\n\r\nstatic public void EncodeToAdaptiveBitrateMP4s(IAsset asset, AssetCreationOptions options, TraceWriter log)\r\n{\r\n\r\n    // Prepare a job with a single task to transcode the specified asset\r\n    // into a multi-bitrate asset MP4 720p preset.\r\n    var encodingPreset = \"H264 Multiple Bitrate 720p\";\r\n\r\n    IJob job = cloudMediaContext.Jobs.Create(\"Encoding \" + asset.Name + \" to \" + encodingPreset);\r\n    \r\n    log.Info($\"Job created\");\r\n    \r\n    IMediaProcessor mesEncoder = (from p in cloudMediaContext.MediaProcessors where p.Name == \"Media Encoder Standard\" select p).ToList().OrderBy(mes => new Version(mes.Version)).LastOrDefault();\r\n    \r\n    log.Info($\"MES encoder\");\r\n    \r\n    ITask encodeTask = job.Tasks.AddNew(\"Encoding\", mesEncoder, encodingPreset, TaskOptions.None);\r\n    encodeTask.InputAssets.Add(asset);\r\n    encodeTask.OutputAssets.AddNew(asset.Name + \" as \" + encodingPreset, AssetCreationOptions.None);\r\n\r\n    log.Info($\"Submit job encoder\");\r\n    job.Submit();\r\n\r\n    //todo - change to queue based notifications\r\n    job.GetExecutionProgressTask(CancellationToken.None).Wait();\r\n    \r\n    \r\n}\r\n\r\n\r\npublic static string GetDynamicStreamingUrl(IAsset outputAsset)\r\n{\r\n    var daysForWhichStreamingUrlIsActive = 365;\r\n    \r\n    var accessPolicy = cloudMediaContext.AccessPolicies.Create(outputAsset.Name, TimeSpan.FromDays(daysForWhichStreamingUrlIsActive), AccessPermissions.Read | AccessPermissions.List);\r\n    var assetFiles = outputAsset.AssetFiles.ToList();\r\n    \r\n    var assetFile = assetFiles.Where(f => f.Name.ToLower().EndsWith(\".ism\")).FirstOrDefault();\r\n    if (assetFile != null)\r\n    {\r\n        var locator = cloudMediaContext.Locators.CreateLocator(LocatorType.OnDemandOrigin, outputAsset, accessPolicy);\r\n        Uri smoothUri = new Uri(locator.Path + assetFile.Name + \"/manifest\");\r\n        \r\n         \r\n        return smoothUri.ToString();\r\n    }\r\n\r\n    return string.Empty;\r\n}\r\n\r\npublic static bool RunIndexingJob(IAsset asset, TraceWriter log, string configurationFile = \"\")\r\n{\r\n    // Declare a new job.\r\n    var jobName = string.Format(\"Media Indexing of {0}\", asset.Name);\r\n    IJob job = cloudMediaContext.Jobs.Create(jobName);\r\n    job.Priority = 10;\r\n\r\n    // Get a reference to the Azure Media Indexer.\r\n    string MediaProcessorName = \"Azure Media Indexer\";\r\n    IMediaProcessor processor = GetLatestMediaProcessorByName(MediaProcessorName);\r\n\r\n    // Read configuration from file if specified.\r\n    string configuration = string.IsNullOrEmpty(configurationFile) ? \"\" : File.ReadAllText(configurationFile);\r\n\r\n    // Create a task with the encoding details, using a string preset.\r\n    ITask task = job.Tasks.AddNew(jobName, processor, configuration, TaskOptions.None);\r\n\r\n    // Specify the input asset to be indexed.\r\n    task.InputAssets.Add(asset);\r\n\r\n    // Add an output asset to contain the results of the job.\r\n    task.OutputAssets.AddNew(string.Format(\"{0} - Indexed\", asset.Name), AssetCreationOptions.None);\r\n\r\n    // Launch the job.\r\n    job.Submit();\r\n    log.Info($\"Media Indexer submitted (Job name: {jobName})\");\r\n\r\n    return true;\r\n}\r\n\r\npublic static IMediaProcessor GetLatestMediaProcessorByName(string mediaProcessorName)\r\n{\r\n    var processor = cloudMediaContext.MediaProcessors.Where(p => p.Name == mediaProcessorName).ToList().OrderBy(p => new Version(p.Version)).LastOrDefault();\r\n\r\n    if (processor == null)\r\n        throw new ArgumentException(string.Format(\"Unknown media processor\", mediaProcessorName));\r\n\r\n    return processor;\r\n}",
+                            "project.json": "{\r\n  \"frameworks\": {\r\n    \"net46\":{\r\n      \"dependencies\": {\r\n        \"windowsazure.mediaservices\": \"3.6.0\"\r\n      }\r\n     }\r\n   }\r\n}",
+                            "QueueData.cs": "public class QueueItem\r\n{\r\n    public string SourceLocation {get;set;}\r\n    public long SizeInBytes {get;set;}\r\n    public string Status {get;set;}\r\n    public string JobID {get;set;}\r\n    public string TargetLocation {get; set;}\r\n}"
+                        }
+                    },
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', parameters('functionAppName'))]"
+                    ]
+                }
+            ],
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', parameters('storageAccountName'))]",
+                "[concat('Microsoft.Media/mediaServices/', parameters('mediaServiceName'))]",
+                "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]"
+            ]
+        }
+    ]
+}

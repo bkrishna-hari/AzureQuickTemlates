@@ -2,77 +2,106 @@
     "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "dataManagerNameParameter": {
-            "type": "String",
+        "dataManagerName": {
+            "type": "string",
             "metadata": {
+                "group": "Data manager settings",
                 "description": "The name of the DataManager Resource within the specified resource group. StorSimple Data Manager name must be between 3 and 24 characters long and use any alphanumeric and underscore only."
             }
         },
-        "dataSourceName": {
-            "type": "String",
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
             "metadata": {
+                "group": "Data manager settings"
+            }
+        },
+        "dataSourceName": {
+            "type": "string",
+            "metadata": {
+                "group": "Data source settings",
                 "description": "The name store/repository name to be created or updated."
             }
         },
         "dataSinkName": {
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Data sink settings",
                 "description": "The name store/repository name to be created or updated."
             }
         },
         "resourceId": {
-            "type": "String"
-        },
-        "serviceEncryptionKey": {
-            "type": "SecureString"
-        },
-        "storageAccountName": {
-            "type": "String",
+            "type": "string",
             "metadata": {
-                "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
+                "group": "Data source settings"
             }
         },
-        "storageAccountEncryptedKey": {
-            "type": "SecureString"
+        "serviceEncryptionKey": {
+            "type": "securestring",
+            "metadata": {
+                "group": "Data source settings"
+            }
         },
         "mediaServiceName": {
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Data sink settings",
                 "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
             }
         },
         "mediaServiceEncryptedKey": {
-            "type": "SecureString"
+            "type": "securestring",
+            "metadata": {
+                "group": "Data sink settings"
+            }
+        },
+        "storageAccountName": {
+            "type": "string",
+            "metadata": {
+                "group": "Data sink settings",
+                "description": "The name must be between 3 and 24 characters and use lowercase letters and numbers only."
+            }
+        },
+        "storageAccountEncryptedKey": {
+            "type": "securestring",
+            "metadata": {
+                "group": "Data sink settings"
+            }
         },
         "jobDefinitionName": {
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Job definition settings",
                 "description": "The name can only contain alpha-numeric characters."
             }
         },
         "deviceName": {
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Job definition settings",
                 "description": "The name can only contain numbers or letters."
             }
         },
         "volumeNames": {
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Job definition settings",
                 "description": "The name can only contain numbers or letters."
             }
         },
         "rootDirectories": {
             "defaultValue": "\\",
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Job definition settings",
                 "description": "The data can only allow either \\ or specific root directory"
             }
         },
         "fileNameFilter": {
             "defaultValue": "*",
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Job definition settings",
                 "description": "The data can only allow either * or *.* or specific file filter"
             }
         },
@@ -82,7 +111,10 @@
                 "UseExistingLatest",
                 "TakeNow"
             ],
-            "type": "String"
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings"
+            }
         },
         "userConfirmation": {
             "defaultValue": "NotRequired",
@@ -90,21 +122,29 @@
                 "NotRequired",
                 "Required"
             ],
-            "type": "String"
+            "type": "string",
+            "metadata": {
+                "group": "Job definition settings"
+            }
         },
         "isDirectoryMode": {
             "defaultValue": false,
-            "type": "Bool"
+            "type": "bool",
+            "metadata": {
+                "group": "Job definition settings"
+            }
         },
         "functionAppName": {
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Azure function app settings",
                 "description": "The name of the function container/app in which the function has to be created."
             }
         },
         "functionName": {
-            "type": "String",
+            "type": "string",
             "metadata": {
+                "group": "Azure function app settings",
                 "description": "The name of the function."
             }
         }
@@ -120,7 +160,7 @@
                 "name": "DS0",
                 "tier": "Standard"
             },
-            "name": "[parameters('dataManagerNameParameter')]",
+            "name": "[parameters('dataManagerName')]",
             "apiVersion": "2016-06-01",
             "location": "[resourceGroup().location]",
             "resources": [
@@ -130,7 +170,7 @@
                     "apiVersion": "2016-06-01",
                     "properties": {
                         "repositoryId": "[concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/StorSimple/providers/Microsoft.StorSimple/managers/'), parameters('resourceId'))]",
-                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStoreTypes/Storsimple8000Series')]",
+                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerName')), '/dataStoreTypes/Storsimple8000Series')]",
                         "state": "Enabled",
                         "extendedProperties": {
                             "resourceId": "[parameters('resourceId')]"
@@ -144,7 +184,7 @@
                         ]
                     },
                     "dependsOn": [
-                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]"
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName'))]"
                     ]
                 },
                 {
@@ -152,8 +192,8 @@
                     "name": "[parameters('dataSinkName')]",
                     "apiVersion": "2016-06-01",
                     "properties": {
-                        "repositoryId": "[concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().location), '/providers/Microsoft.Media/mediaservices/'), parameters('mediaServiceName'))]",
-                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStoreTypes/AzureMediaServicesAccount')]",
+                        "repositoryId": "[concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.Media/mediaservices/'), parameters('mediaServiceName'))]",
+                        "dataStoreTypeId": "[concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourceGroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerName')), '/dataStoreTypes/AzureMediaServicesAccount')]",
                         "state": "Enabled",
                         "extendedProperties": {
                             "storageAccountNameForQueue": "[parameters('storageAccountName')]"
@@ -172,7 +212,7 @@
                         ]
                     },
                     "dependsOn": [
-                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]"
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName'))]"
                     ]
                 },
                 {
@@ -180,8 +220,8 @@
                     "name": "[concat('dataTransformation/', parameters('jobDefinitionName'))]",
                     "apiVersion": "2016-06-01",
                     "properties": {
-                        "dataSourceId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
-                        "dataSinkId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]",
+                        "dataSourceId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerName')), '/dataStores/'), parameters('dataSourceName'))]",
+                        "dataSinkId": "[concat(concat(concat(concat(concat(concat(concat('/subscriptions/', variables('subscriptionId')), '/resourcegroups/'), resourceGroup().name), '/providers/Microsoft.HybridData/dataManagers/'), parameters('dataManagerName')), '/dataStores/'), parameters('dataSinkName'))]",
                         "state": "Enabled",
                         "userConfirmation": "[parameters('userConfirmation')]",
                         "dataServiceInput": {
@@ -198,9 +238,9 @@
                         }
                     },
                     "dependsOn": [
-                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]",
-                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
-                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]"
+                        "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName'))]",
+                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName')), '/dataStores/'), parameters('dataSourceName'))]",
+                        "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName')), '/dataStores/'), parameters('dataSinkName'))]"
                     ]
                 }
             ]
@@ -284,10 +324,10 @@
                 }
             ],
             "dependsOn": [
-                "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'))]",
-                "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSourceName'))]",
-                "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter')), '/dataStores/'), parameters('dataSinkName'))]",
-                "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerNameParameter'), '/dataServices/dataTransformation/jobDefinitions/', parameters('jobDefinitionName'))]"
+                "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName'))]",
+                "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName')), '/dataStores/'), parameters('dataSourceName'))]",
+                "[concat(concat(concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName')), '/dataStores/'), parameters('dataSinkName'))]",
+                "[concat('Microsoft.HybridData/dataManagers/', parameters('dataManagerName'), '/dataServices/dataTransformation/jobDefinitions/', parameters('jobDefinitionName'))]"
             ]
         }
     ]
